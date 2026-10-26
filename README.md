@@ -7,7 +7,7 @@ vez por sesión dentro de la misma sesión del navegador; si la sesión
 cambia (login nuevo), envía de nuevo.
 
 El popup muestra el estado (solo presencias, nunca valores) y permite
-forzar un envío manual.
+descargar el contenido de la creadora seleccionada.
 
 ## Instalación
 
