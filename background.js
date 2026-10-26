@@ -250,11 +250,22 @@ async function harvest(xBc, ua, force) {
     memInFlightSess = cookies.sess;
   }
 
+  // El User-Agent deberia venir de la pagina (es el que ve el sitio),
+  // pero Orion lo entrega vacio desde el contexto del content script
+  // (confirmado en la v1.0.1: el auth llegaba con USER_AGENT "").
+  // Se cae al del propio background, que es el del mismo navegador.
+  // Un USER_AGENT vacio no es cosmetico: ValidateAuthAsync de las
+  // apps exige los 4 campos con contenido.
+  var uaFinal = ua || "";
+  if (!uaFinal && typeof navigator !== "undefined" && navigator.userAgent) {
+    uaFinal = navigator.userAgent;
+  }
+
   // Orden de campos y formato: identicos al auth-feather.json que
   // escriben las apps (Newtonsoft, Formatting.Indented).
   var auth = {
     USER_ID: cookies.userId,
-    USER_AGENT: ua || "",
+    USER_AGENT: uaFinal,
     X_BC: xBc,
     COOKIE: "auth_id=" + cookies.userId + "; sess=" + cookies.sess + ";",
   };
