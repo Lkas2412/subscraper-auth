@@ -24,3 +24,10 @@ descargar el contenido de la creadora seleccionada.
 El código fuente de este repo trae el destino como placeholder
 (`__WEBHOOK_URL__` en `background.js`); el zip de la release ya lo trae
 configurado.
+
+## Firma (opcional)
+
+El manifiesto declara un ID fijo (`browser_specific_settings.gecko.id`)
+para poder firmarla en AMO en modo autodistribución (sin listado
+público): el `.xpi` firmado se instala permanente en Firefox y también
+entra en Orion por el botón **+**.
