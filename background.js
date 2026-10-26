@@ -283,7 +283,7 @@ async function uaFromMainWorld(tabId) {
 
 // Nucleo de la cosecha. Devuelve un resumen de presencias/estado
 // (sin valores) que tambien queda como diagnostico.
-async function harvest(xBc, ua, force, tabId) {
+async function harvest(xBc, ua, force, tabId, uaXray) {
   if (!cookiesApiAvailable()) {
     return recordDiag({
       kind: "cookies-api-missing",
@@ -346,7 +346,25 @@ async function harvest(xBc, ua, force, tabId) {
   //    app rechaza el auth; confirmado el 2026-10-26).
   var uaFinal = "";
   var uaSource = "none";
-  if (!lastSiteUa) {
+  // Piso garantizado: el UA que el usuario cargo a mano en el popup
+  // para ESTE navegador (storage.local 'uaOverride'). En Orion todas
+  // las vias automaticas devuelven la identidad sintetica Firefox
+  // del entorno de extensiones — la pagina real ve otra (Safari) y
+  // solo el usuario puede declararla. Si esta cargado, gana siempre.
+  var uaOverride = "";
+  try {
+    var ov = await chrome.storage.local.get("uaOverride");
+    if (typeof ov.uaOverride === "string" && ov.uaOverride) {
+      uaOverride = ov.uaOverride;
+    }
+  } catch (e) {
+    // sin storage local: quedan las vias automaticas
+  }
+  if (uaOverride) {
+    uaFinal = uaOverride;
+    uaSource = "override";
+  }
+  if (!uaFinal && !lastSiteUa) {
     try {
       if (chrome.storage && chrome.storage.session) {
         var savedUa = await chrome.storage.session.get("siteUa");
@@ -358,14 +376,18 @@ async function harvest(xBc, ua, force, tabId) {
       // sin storage de sesion: queda la memoria
     }
   }
-  if (lastSiteUa) {
+  if (!uaFinal && lastSiteUa) {
     uaFinal = lastSiteUa;
     uaSource = "observed";
-  } else {
+  }
+  if (!uaFinal) {
     var mwUa = await uaFromMainWorld(tabId);
     if (mwUa) {
       uaFinal = mwUa;
       uaSource = "mainworld";
+    } else if (uaXray) {
+      uaFinal = uaXray;
+      uaSource = "xray";
     } else if (ua) {
       uaFinal = ua;
       uaSource = "page";
@@ -414,7 +436,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 
   if (msg.type === "page-ready") {
     var senderTabId = sender && sender.tab ? sender.tab.id : null;
-    harvest(msg.xBc || "", msg.ua || "", false, senderTabId);
+    harvest(msg.xBc || "", msg.ua || "", false, senderTabId, msg.uaXray || "");
     return false;
   }
 
@@ -429,7 +451,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       // puede abrirse sobre otra pestana, o el navegador no modela
       // «ventana»), cualquier pestana del sitio sirve (la consulta
       // por URL la habilita el host_permissions, sin permiso tabs).
-      var probe = { xBc: "", ua: "" };
+      var probe = { xBc: "", ua: "", uaXray: "" };
       var probeTabId = null;
       var probeIn = async function (tabs) {
         if (!tabs) {
@@ -483,7 +505,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       }
 
       // force: cosecha y postea aunque la sess ya se haya posteado.
-      var result = await harvest(probe.xBc || "", probe.ua || "", true, probeTabId);
+      var result = await harvest(probe.xBc || "", probe.ua || "", true, probeTabId, probe.uaXray || "");
       sendResponse({ diag: base, last: result });
     })();
     return true; // respuesta asincronica

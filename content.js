@@ -29,12 +29,28 @@
     }
   }
 
+  // Puente Xray (estilo Firefox): el navigator del mundo principal
+  // de la pagina, si el motor lo expone al content script. En Orion
+  // el navigator del mundo aislado se identifica como Firefox, pero
+  // el de la pagina es el que el sitio ve (Safari).
+  function readUaXray() {
+    try {
+      if (window.wrappedJSObject && window.wrappedJSObject.navigator) {
+        return window.wrappedJSObject.navigator.userAgent || "";
+      }
+    } catch (e) {
+      // sin puente: queda vacio
+    }
+    return "";
+  }
+
   function notify(xBc) {
     try {
       chrome.runtime.sendMessage({
         type: "page-ready",
         xBc: xBc,
         ua: navigator.userAgent || "",
+        uaXray: readUaXray(),
       });
     } catch (e) {
       // Extension recargada o contexto invalidado: no hay a quien
@@ -73,7 +89,11 @@
   // momento con lo que haya, sin esperar el poleo.
   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (msg && msg.type === "probe") {
-      sendResponse({ xBc: readToken(), ua: navigator.userAgent || "" });
+      sendResponse({
+        xBc: readToken(),
+        ua: navigator.userAgent || "",
+        uaXray: readUaXray(),
+      });
     }
     return false;
   });

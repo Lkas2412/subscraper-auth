@@ -66,6 +66,40 @@ function ask(type) {
   });
 }
 
+// User-Agent manual (override): en navegadores cuyo entorno de
+// extensiones se identifica distinto de lo que el sitio ve (Orion),
+// el usuario declara el UA verdadero una vez y la cosecha lo usa
+// siempre. Vacio = vias automaticas.
+function loadOverride() {
+  try {
+    chrome.storage.local.get("uaOverride", function (r) {
+      var ignored = chrome.runtime.lastError;
+      void ignored;
+      if (r && typeof r.uaOverride === "string") {
+        document.getElementById("ua-override").value = r.uaOverride;
+      }
+    });
+  } catch (e) {
+    // sin storage: el campo queda como decoracion inerte
+  }
+}
+document.getElementById("ua-save").addEventListener("click", function () {
+  var v = document.getElementById("ua-override").value.trim();
+  try {
+    chrome.storage.local.set({ uaOverride: v }, function () {
+      var ignored = chrome.runtime.lastError;
+      void ignored;
+      document.getElementById("last").textContent = v
+        ? "User-Agent manual guardado: se usará en las próximas cosechas de este navegador."
+        : "User-Agent manual borrado: vuelven las vías automáticas.";
+    });
+  } catch (e) {
+    document.getElementById("last").textContent =
+      "Este navegador no dejó guardar el User-Agent manual.";
+  }
+});
+loadOverride();
+
 document.getElementById("refresh").addEventListener("click", function () {
   ask("diagnose");
 });

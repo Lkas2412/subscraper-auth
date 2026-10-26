@@ -11,6 +11,8 @@
   .ok { color: #0a7d28; font-weight: 600; }
   .bad { color: #b00020; font-weight: 600; }
   button { width: 100%; margin-top: 8px; padding: 7px; font-size: 13px; }
+  input { width: 100%; box-sizing: border-box; margin-top: 6px; padding: 6px; font-size: 12px; }
+  .ualabel { margin-top: 12px; color: #555; }
   #last { margin-top: 8px; color: #333; white-space: pre-wrap; word-break: break-word; }
   .hint { color: #666; font-size: 12px; margin-top: 8px; }
 </style>
@@ -26,6 +28,9 @@
   </table>
   <button id="force">Cosechar y enviar ahora</button>
   <button id="refresh">Actualizar diagnóstico</button>
+  <div class="ualabel">User-Agent manual de este navegador (opcional):</div>
+  <input id="ua-override" type="text" placeholder="Vacío = automático">
+  <button id="ua-save">Guardar User-Agent</button>
   <div id="last">Sin eventos todavía.</div>
   <div class="hint">El envío es automático al entrar a OnlyFans con la sesión
   iniciada (una vez por sesión del navegador). Este panel muestra solo
