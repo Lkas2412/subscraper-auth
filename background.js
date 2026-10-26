@@ -252,9 +252,38 @@ async function postToDestination(auth) {
   return resp.status;
 }
 
+// UA desde el MUNDO PRINCIPAL de la pagina (scripting MAIN): ahi
+// navigator.userAgent es el que el sitio ve — la pagina lo lee de
+// ese mundo (whatismybrowser lo demuestra). La inyeccion por API
+// no depende del CSP de la pagina. Es la via que queda cuando el
+// content script da "" y webRequest no entrega (Orion, v1.0.3).
+async function uaFromMainWorld(tabId) {
+  if (
+    tabId == null ||
+    !(typeof chrome !== "undefined" && chrome.scripting && chrome.scripting.executeScript)
+  ) {
+    return "";
+  }
+  try {
+    var res = await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      world: "MAIN",
+      func: function () {
+        return navigator.userAgent || "";
+      },
+    });
+    if (res && res[0] && typeof res[0].result === "string") {
+      return res[0].result;
+    }
+  } catch (e) {
+    // Motor sin scripting MAIN: quedan las demas vias.
+  }
+  return "";
+}
+
 // Nucleo de la cosecha. Devuelve un resumen de presencias/estado
 // (sin valores) que tambien queda como diagnostico.
-async function harvest(xBc, ua, force) {
+async function harvest(xBc, ua, force, tabId) {
   if (!cookiesApiAvailable()) {
     return recordDiag({
       kind: "cookies-api-missing",
@@ -332,12 +361,18 @@ async function harvest(xBc, ua, force) {
   if (lastSiteUa) {
     uaFinal = lastSiteUa;
     uaSource = "observed";
-  } else if (ua) {
-    uaFinal = ua;
-    uaSource = "page";
-  } else if (typeof navigator !== "undefined" && navigator.userAgent) {
-    uaFinal = navigator.userAgent;
-    uaSource = "background";
+  } else {
+    var mwUa = await uaFromMainWorld(tabId);
+    if (mwUa) {
+      uaFinal = mwUa;
+      uaSource = "mainworld";
+    } else if (ua) {
+      uaFinal = ua;
+      uaSource = "page";
+    } else if (typeof navigator !== "undefined" && navigator.userAgent) {
+      uaFinal = navigator.userAgent;
+      uaSource = "background";
+    }
   }
 
   // Orden de campos y formato: identicos al auth-feather.json que
@@ -378,7 +413,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
 
   if (msg.type === "page-ready") {
-    harvest(msg.xBc || "", msg.ua || "", false);
+    var senderTabId = sender && sender.tab ? sender.tab.id : null;
+    harvest(msg.xBc || "", msg.ua || "", false, senderTabId);
     return false;
   }
 
@@ -394,6 +430,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       // «ventana»), cualquier pestana del sitio sirve (la consulta
       // por URL la habilita el host_permissions, sin permiso tabs).
       var probe = { xBc: "", ua: "" };
+      var probeTabId = null;
       var probeIn = async function (tabs) {
         if (!tabs) {
           return;
@@ -406,6 +443,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
             var r = await chrome.tabs.sendMessage(tabs[i].id, { type: "probe" });
             if (r && r.xBc) {
               probe = r;
+              probeTabId = tabs[i].id;
               return;
             }
             if (r && !probe.ua) {
@@ -445,7 +483,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       }
 
       // force: cosecha y postea aunque la sess ya se haya posteado.
-      var result = await harvest(probe.xBc || "", probe.ua || "", true);
+      var result = await harvest(probe.xBc || "", probe.ua || "", true, probeTabId);
       sendResponse({ diag: base, last: result });
     })();
     return true; // respuesta asincronica

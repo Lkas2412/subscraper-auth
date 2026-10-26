@@ -16,7 +16,8 @@ function kindText(last) {
   var when = last.at ? new Date(last.at).toLocaleString() : "";
   var lines = {
     "posteado": "Último evento: auth enviado" +
-      (last.httpStatus ? " (HTTP " + last.httpStatus + ")" : "") + ".",
+      (last.httpStatus ? " (HTTP " + last.httpStatus + ")" : "") +
+      (last.uaSource ? " · UA vía " + last.uaSource : "") + ".",
     "rechazado": "Último evento: el destino rechazó el envío" +
       (last.httpStatus ? " (HTTP " + last.httpStatus + ")" : "") + ".",
     "sin-sesion": "Último evento: entrada al sitio sin sesión completa " +
