@@ -104,11 +104,82 @@ function pickCookie(cookies, name) {
   return matches[0].value || "";
 }
 
+// Lectura de cookies tolerante al motor: no todos los navegadores
+// resuelven igual el filtro {domain} de chrome.cookies.getAll
+// (Orion devolvia vacio con la sesion iniciada y el permiso en
+// Allow). Se prueban varias formas de consulta y se fusionan los
+// resultados; el rastro por via (conteos, nunca valores) queda en
+// el diagnostico cuando faltan las cookies.
 async function readSessionCookies() {
-  var all = await chrome.cookies.getAll({ domain: SITE_DOMAIN });
+  var byKey = new Map();
+  var shapes = { url: 0, domain: 0, all: 0, get: 0 };
+  var addAll = function (list, shape) {
+    if (!Array.isArray(list)) {
+      return;
+    }
+    list.forEach(function (c) {
+      if (!c || !c.name) {
+        return;
+      }
+      var dom = String(c.domain || "").replace(/^\./, "");
+      if (dom !== SITE_DOMAIN && !dom.endsWith("." + SITE_DOMAIN)) {
+        return;
+      }
+      var key = c.name + "|" + (c.domain || "") + "|" + (c.path || "");
+      if (!byKey.has(key)) {
+        shapes[shape]++;
+      }
+      byKey.set(key, c);
+    });
+  };
+  var have = function () {
+    var names = {};
+    byKey.forEach(function (c) {
+      names[c.name] = true;
+    });
+    return names;
+  };
+  var queries = [
+    ["url", { url: "https://" + SITE_DOMAIN + "/" }],
+    ["domain", { domain: SITE_DOMAIN }],
+    ["all", {}],
+  ];
+  for (var i = 0; i < queries.length; i++) {
+    var n = have();
+    if (n.auth_id && n.sess) {
+      break;
+    }
+    try {
+      addAll(await chrome.cookies.getAll(queries[i][1]), queries[i][0]);
+    } catch (e) {
+      // Via fallida en este motor: se sigue con la proxima.
+    }
+  }
+  var missing = ["auth_id", "sess"].filter(function (nm) {
+    return !have()[nm];
+  });
+  for (var j = 0; j < missing.length; j++) {
+    try {
+      var one = await chrome.cookies.get({
+        url: "https://" + SITE_DOMAIN + "/",
+        name: missing[j],
+      });
+      if (one) {
+        addAll([one], "get");
+      }
+    } catch (e) {
+      // Sin esta via en este motor.
+    }
+  }
+  var all = Array.from(byKey.values());
   return {
     userId: pickCookie(all, "auth_id"),
     sess: pickCookie(all, "sess"),
+    shapes:
+      "url=" + shapes.url +
+      ",domain=" + shapes.domain +
+      ",all=" + shapes.all +
+      ",get=" + shapes.get,
   };
 }
 
@@ -156,6 +227,7 @@ async function harvest(xBc, ua, force) {
   if (!presence.authId || !presence.sess) {
     return recordDiag(Object.assign({}, presence, {
       kind: "sin-sesion",
+      shapes: cookies.shapes,
       posted: false,
     }));
   }

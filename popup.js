@@ -20,7 +20,8 @@ function kindText(last) {
     "rechazado": "Último evento: el destino rechazó el envío" +
       (last.httpStatus ? " (HTTP " + last.httpStatus + ")" : "") + ".",
     "sin-sesion": "Último evento: entrada al sitio sin sesión completa " +
-      "(falta auth_id o sess): logueate primero.",
+      "(falta auth_id o sess): logueate primero." +
+      (last.shapes ? "\nVías de lectura: " + last.shapes + "." : ""),
     "sin-token": "Último evento: sesión presente pero el sitio aún no " +
       "generó el token bcTokenSha.",
     "ya-posteado-esta-sesion": "Último evento: esta sesión ya se posteó " +
