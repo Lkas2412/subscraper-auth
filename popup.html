@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; width: 300px; margin: 10px; font-size: 13px; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: 2px 4px; vertical-align: top; }
+  td.k { color: #555; white-space: nowrap; }
+  .ok { color: #0a7d28; font-weight: 600; }
+  .bad { color: #b00020; font-weight: 600; }
+  button { width: 100%; margin-top: 8px; padding: 7px; font-size: 13px; }
+  #last { margin-top: 8px; color: #333; white-space: pre-wrap; word-break: break-word; }
+  .hint { color: #666; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>SubScraper Auth Harvest</h1>
+  <table>
+    <tr><td class="k">API de cookies</td><td id="d-cookies">…</td></tr>
+    <tr><td class="k">Webhook cargado</td><td id="d-webhook">…</td></tr>
+    <tr><td class="k">auth_id</td><td id="d-authid">…</td></tr>
+    <tr><td class="k">sess</td><td id="d-sess">…</td></tr>
+    <tr><td class="k">bcTokenSha</td><td id="d-token">…</td></tr>
+  </table>
+  <button id="force">Cosechar y enviar ahora</button>
+  <button id="refresh">Actualizar diagnóstico</button>
+  <div id="last">Sin eventos todavía.</div>
+  <div class="hint">El envío es automático al entrar a OnlyFans con la sesión
+  iniciada (una vez por sesión del navegador). Este panel muestra solo
+  presencias, nunca valores.</div>
+  <script src="popup.js"></script>
+</body>
+</html>
