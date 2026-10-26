@@ -36,6 +36,64 @@ var memPostedSess = null;
 // el posteo no prospera (un 2xx la convierte en marca persistida).
 var memInFlightSess = null;
 
+// User-Agent REAL que el navegador presenta al sitio, observado
+// pasivamente de las cabeceras de los propios pedidos de la pagina
+// (webRequest). Es la fuente de verdad: en Orion el content script
+// da navigator.userAgent vacio y el background se identifica como
+// Firefox, pero el sitio ve Safari — y el auth tiene que llevar el
+// UA que el sitio conoce, o la app lo rechaza y el sitio expulsa la
+// sesion (aprendido el 2026-10-26 con la sesion compartida).
+var lastSiteUa = "";
+
+function noteSiteUa(value) {
+  if (!value || value === lastSiteUa) {
+    return;
+  }
+  lastSiteUa = value;
+  try {
+    if (chrome.storage && chrome.storage.session) {
+      chrome.storage.session.set({ siteUa: value });
+    }
+  } catch (e) {
+    // queda en memoria
+  }
+}
+
+if (
+  typeof chrome !== "undefined" &&
+  chrome.webRequest &&
+  chrome.webRequest.onBeforeSendHeaders
+) {
+  var wrListener = function (details) {
+    if (details.tabId == null || details.tabId < 0) {
+      return;
+    }
+    var headers = details.requestHeaders || [];
+    for (var i = 0; i < headers.length; i++) {
+      var hn = (headers[i].name || "").toLowerCase();
+      if (hn === "user-agent" && headers[i].value) {
+        noteSiteUa(headers[i].value);
+        break;
+      }
+    }
+  };
+  var wrFilter = { urls: ["https://" + SITE_DOMAIN + "/*"] };
+  try {
+    chrome.webRequest.onBeforeSendHeaders.addListener(wrListener, wrFilter, [
+      "requestHeaders",
+      "extraHeaders",
+    ]);
+  } catch (e) {
+    try {
+      chrome.webRequest.onBeforeSendHeaders.addListener(wrListener, wrFilter, [
+        "requestHeaders",
+      ]);
+    } catch (e2) {
+      // Este motor no deja observar: quedan las otras fuentes de UA.
+    }
+  }
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -250,15 +308,36 @@ async function harvest(xBc, ua, force) {
     memInFlightSess = cookies.sess;
   }
 
-  // El User-Agent deberia venir de la pagina (es el que ve el sitio),
-  // pero Orion lo entrega vacio desde el contexto del content script
-  // (confirmado en la v1.0.1: el auth llegaba con USER_AGENT "").
-  // Se cae al del propio background, que es el del mismo navegador.
-  // Un USER_AGENT vacio no es cosmetico: ValidateAuthAsync de las
-  // apps exige los 4 campos con contenido.
-  var uaFinal = ua || "";
-  if (!uaFinal && typeof navigator !== "undefined" && navigator.userAgent) {
+  // User-Agent por orden de fidelidad al que el sitio conoce:
+  // 1) el observado en los pedidos reales de la pagina (webRequest);
+  // 2) el que manda el content script (navigator de la pagina —
+  //    en Chrome/Edge/Firefox es el verdadero; en Orion viene "");
+  // 3) el del propio background (ultimo recurso: en Orion es una
+  //    identidad Firefox que el sitio NO ve — con esa etiqueta la
+  //    app rechaza el auth; confirmado el 2026-10-26).
+  var uaFinal = "";
+  var uaSource = "none";
+  if (!lastSiteUa) {
+    try {
+      if (chrome.storage && chrome.storage.session) {
+        var savedUa = await chrome.storage.session.get("siteUa");
+        if (savedUa.siteUa) {
+          lastSiteUa = savedUa.siteUa;
+        }
+      }
+    } catch (e) {
+      // sin storage de sesion: queda la memoria
+    }
+  }
+  if (lastSiteUa) {
+    uaFinal = lastSiteUa;
+    uaSource = "observed";
+  } else if (ua) {
+    uaFinal = ua;
+    uaSource = "page";
+  } else if (typeof navigator !== "undefined" && navigator.userAgent) {
     uaFinal = navigator.userAgent;
+    uaSource = "background";
   }
 
   // Orden de campos y formato: identicos al auth-feather.json que
@@ -280,6 +359,7 @@ async function harvest(xBc, ua, force) {
     return recordDiag(Object.assign({}, presence, {
       kind: ok ? "posteado" : "rechazado",
       httpStatus: status,
+      uaSource: uaSource,
       posted: ok,
     }));
   } catch (e) {
