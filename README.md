@@ -1,4 +1,4 @@
-# Auth Harvest (extensión)
+# SubScraper Auth (extensión)
 
 Extensión WebExtension (MV3) de uso personal: al entrar a OnlyFans con la
 sesión iniciada, cosecha el auth (mismo formato que guardan las apps de
