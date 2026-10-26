@@ -52,9 +52,6 @@ function render(resp) {
     setCell("d-sess", d.sess, "presente", "ausente");
   }
   setCell("d-token", !!d.token, "presente", "ausente");
-  if (typeof d.uaForced === "boolean") {
-    setCell("d-uarule", d.uaForced, "sí", "no");
-  }
   document.getElementById("last").textContent = kindText(resp.last);
 }
 
@@ -88,39 +85,17 @@ function loadOverride() {
 }
 document.getElementById("ua-save").addEventListener("click", function () {
   var v = document.getElementById("ua-override").value.trim();
-  var last = document.getElementById("last");
   try {
-    chrome.runtime.sendMessage({ type: "set-ua", ua: v }, function (resp) {
-      var err = chrome.runtime.lastError;
-      if (err || !resp) {
-        // Background viejo o dormido: se guarda la etiqueta igual,
-        // sin forzado de red (comportamiento de la v1.0.5).
-        try {
-          chrome.storage.local.set({ uaOverride: v });
-        } catch (e) {
-          // sin storage: nada que guardar
-        }
-        last.textContent = v
-          ? "User-Agent guardado como etiqueta (sin confirmación de forzado)."
-          : "User-Agent manual borrado.";
-        return;
-      }
-      if (!v) {
-        last.textContent =
-          "User-Agent manual borrado: vuelven las vías automáticas y no se fuerza ningún UA.";
-      } else if (resp.applied) {
-        last.textContent =
-          "User-Agent guardado y FORZADO en los pedidos al sitio: la sesión nacerá con esta identidad. Logueate de nuevo para estrenarla.";
-      } else if (resp.api) {
-        last.textContent =
-          "User-Agent guardado como etiqueta, pero este navegador rechazó la regla de forzado.";
-      } else {
-        last.textContent =
-          "User-Agent guardado como etiqueta: este navegador no ofrece forzado de red (la identidad del sitio se sigue ajustando en el navegador).";
-      }
+    chrome.storage.local.set({ uaOverride: v }, function () {
+      var ignored = chrome.runtime.lastError;
+      void ignored;
+      document.getElementById("last").textContent = v
+        ? "User-Agent manual guardado: se usará en las próximas cosechas de este navegador."
+        : "User-Agent manual borrado: vuelven las vías automáticas.";
     });
   } catch (e) {
-    last.textContent = "Este navegador no dejó guardar el User-Agent manual.";
+    document.getElementById("last").textContent =
+      "Este navegador no dejó guardar el User-Agent manual.";
   }
 });
 loadOverride();

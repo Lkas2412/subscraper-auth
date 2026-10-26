@@ -429,109 +429,9 @@ async function harvest(xBc, ua, force, tabId, uaXray) {
   }
 }
 
-// Forzado del User-Agent en la red (v1.1): con declarativeNetRequest
-// la extension reescribe la cabecera User-Agent de TODOS los pedidos
-// al sitio, para que la sesion nazca con la identidad del override
-// sin tocar los ajustes del navegador. Es la misma cadena del campo
-// manual: un solo lugar manda en la etiqueta y en la red. Limites
-// conocidos: la cabecera se reescribe, pero navigator.userAgent (el
-// que lee el JS de la pagina) no cambia; y hay motores que no
-// implementan la API (el popup lo refleja: guardado != forzado).
-var UA_RULE_ID = 1001;
-
-function dnrAvailable() {
-  return !!(
-    typeof chrome !== "undefined" &&
-    chrome.declarativeNetRequest &&
-    chrome.declarativeNetRequest.updateDynamicRules
-  );
-}
-
-async function applyUaRule(ua) {
-  if (!dnrAvailable()) {
-    return { api: false, applied: false };
-  }
-  try {
-    if (ua) {
-      var rule = {
-        id: UA_RULE_ID,
-        priority: 1,
-        action: {
-          type: "modifyHeaders",
-          requestHeaders: [
-            { header: "User-Agent", operation: "set", value: ua },
-          ],
-        },
-        condition: { urlFilter: "||" + SITE_DOMAIN },
-      };
-      await chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: [UA_RULE_ID],
-        addRules: [rule],
-      });
-    } else {
-      await chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: [UA_RULE_ID],
-      });
-    }
-    return { api: true, applied: true };
-  } catch (e) {
-    return { api: true, applied: false };
-  }
-}
-
-async function uaRuleActive() {
-  if (
-    !dnrAvailable() ||
-    !chrome.declarativeNetRequest.getDynamicRules
-  ) {
-    return false;
-  }
-  try {
-    var rules = await chrome.declarativeNetRequest.getDynamicRules();
-    for (var i = 0; i < rules.length; i++) {
-      if (rules[i].id === UA_RULE_ID) {
-        return true;
-      }
-    }
-  } catch (e) {
-    // sin lectura de reglas: se reporta no activa
-  }
-  return false;
-}
-
-// Al arrancar el background: re-aplicar la regla desde el override
-// guardado (las reglas dinamicas persisten en Chrome/Firefox, pero
-// en motores con persistencia dudosa esto la restablece igual).
-(async function () {
-  try {
-    var saved = await chrome.storage.local.get("uaOverride");
-    if (typeof saved.uaOverride === "string" && saved.uaOverride) {
-      await applyUaRule(saved.uaOverride);
-    }
-  } catch (e) {
-    // sin storage o sin DNR: la cosecha sigue con sus vias
-  }
-})();
-
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (!msg || !msg.type) {
     return false;
-  }
-
-  if (msg.type === "set-ua") {
-    (async function () {
-      var ua = typeof msg.ua === "string" ? msg.ua.trim() : "";
-      var stored = false;
-      try {
-        await chrome.storage.local.set({ uaOverride: ua });
-        stored = true;
-      } catch (e) {
-        // sin storage: la regla igual se intenta aplicar
-      }
-      var res = await applyUaRule(ua);
-      sendResponse({ stored: stored, api: res.api, applied: res.applied });
-    })();
-    return true; // respuesta asincronica
   }
 
   if (msg.type === "page-ready") {
@@ -599,7 +499,6 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
             base.sess = false;
           }
         }
-        base.uaForced = await uaRuleActive();
         var last = (await chrome.storage.local.get("diag")).diag || null;
         sendResponse({ diag: base, last: last });
         return;
